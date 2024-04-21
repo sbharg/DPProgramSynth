@@ -14,6 +14,7 @@ class LanguageError(Exception):
 class Interpretor:
 
     def __init__(self):
+        self.numz3Arrays = 0
         self.holes = {}
         self.variables = {}
         self.functions = {
@@ -365,15 +366,17 @@ class Interpretor:
             bounds_flag = True
 
         out = self.eval_program(tree)
-
-        if bounds_flag:
-            for hole in self.holes:
-                if hole.startswith('x'):
-                    s.add(self.holes[hole] >= 0)
-                    s.add(self.holes[hole] <= self.variables['n']-1)
-                else:
-                    s.add(self.holes[hole] >= -1)
-                    s.add(self.holes[hole] <= 1)
+        for var in self.variables.values():
+            if isinstance(var, z3.ArrayRef):
+                self.numz3Arrays += 1
+        #if bounds_flag:
+        for hole in self.holes:
+            if hole.startswith('x'):
+                s.add(self.holes[hole] >= 0)
+                s.add(self.holes[hole] <= self.variables['n']-1)
+            else:
+                s.add(self.holes[hole] >= -1)
+                s.add(self.holes[hole] <= 1)
 
         s.push()
         return out
