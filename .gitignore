@@ -32,6 +32,8 @@ MANIFEST
 include/
 pyvenv.cfg
 options.txt
+temp.py
+temp.ipynb
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
