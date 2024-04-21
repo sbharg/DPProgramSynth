@@ -55,17 +55,8 @@ class Interpretor:
     def eval_hole(self, node: Tree):
         name = node.children[0]
         if name not in self.holes:
-            self.holes[name] = z3.Int(name)
+            self.holes[name] = z3.Int(name)                
         return self.holes[name]
-    
-        '''
-        if len(node.children) == 2:
-            var = node.children[0].children[0].value
-            val = self.eval_expression(node.children[1])
-            self.variables[var] = val
-            return None
-        raise Exception(f"Variable Assignment Error")
-        '''
     
     def eval_arguments(self, node: Tree):
         args = []
@@ -358,3 +349,31 @@ class Interpretor:
         self.variables = lookup
         #print(tree.pretty())
         return self.eval_program(tree)
+    
+    def synthesis(self, prog, lookup, s, debug = False):
+        if debug:
+            try:
+                print(s.model())
+            except z3.Z3Exception:
+                pass
+
+        tree = self.parser.parse(prog)
+        self.variables = lookup
+
+        bounds_flag = False
+        if len(self.holes) == 0:
+            bounds_flag = True
+
+        out = self.eval_program(tree)
+
+        if bounds_flag:
+            for hole in self.holes:
+                if hole.startswith('x'):
+                    s.add(self.holes[hole] >= 0)
+                    s.add(self.holes[hole] <= self.variables['n']-1)
+                else:
+                    s.add(self.holes[hole] >= -1)
+                    s.add(self.holes[hole] <= 1)
+
+        s.push()
+        return out
