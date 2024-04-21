@@ -141,7 +141,7 @@ if __name__ == "__main__":
             p_te = time.perf_counter()
             print_time += p_te - p_ts
         else:
-            raise Exception("No solution found (Did not find a SAT solution).")
+            raise Exception("Did not find a SAT solution.")
     te = time.perf_counter()
 
     print(f"Average time of {args.runs} runs: {(te - ts - print_time - init_time)/args.runs:0.4f} seconds")
