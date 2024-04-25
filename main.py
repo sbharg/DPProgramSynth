@@ -84,6 +84,7 @@ if __name__ == "__main__":
 
     examples = Path(args.examples)  
     df = pd.read_csv(examples)
+    
     df['Input'] = df['Input'].apply(lambda x: literal_eval(x))
     n = len(df['Input'][0])
     print("Finished reading inputs")
@@ -105,23 +106,19 @@ if __name__ == "__main__":
         val = z3.Int('val')
         A = z3.IntVector('A', n)
         expr = interp.synthesis(prog, {'A': A}, s, debug=False) 
+            
         for index, row in df.iterrows():
-            arr = row['Input']
+            ex = row['Input']
             opt = row['Opt']
-            #test = z3.Implies(z3.And([A[i] == arr[i] for i in range(len(arr))]), interp.synthesis(prog, {'A': arr}, s, debug=False) == opt)
-            #test = interp.synthesis(prog, {'A': arr}, s, debug=False) == opt
 
-            stmt = [A[i] == arr[i] for i in range(len(arr))]
+            stmt = [A[i] == ex[i] for i in range(len(ex))]
             stmt.append(val == opt)
             test = z3.And(stmt)
             lst.append(test)
         tests = z3.Or(lst)
 
-        s.add(
-            z3.ForAll([*A, val], z3.Implies(tests, expr == val))
-        )
-        #s.add(tests)
-       
+        s.add(z3.ForAll([*A, val], z3.Implies(tests, expr == val)))
+        #print(s.sexpr())
 
         res = s.check()
         if res == z3.sat:
