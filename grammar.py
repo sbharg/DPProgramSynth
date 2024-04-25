@@ -15,9 +15,8 @@ GRAMMAR = r"""
     program         : stmt_lst
     stmt_lst        : statement+
 
-    statement       : expression | return_stmt | if_stmt | for_stmt 
+    statement       : expression | return_stmt | for_stmt 
     return_stmt     : "return" expression ~ 1 -> return_statement
-    if_stmt         : "if" "(" expression ")" stmt_lst "end" -> if_statement
     for_stmt        : "for" "(" expression ";" expression ";" expression ")" stmt_lst "end" -> for_statement
 
     expression      : assignment | logic_or

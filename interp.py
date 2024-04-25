@@ -3,6 +3,7 @@ from grammar import GRAMMAR
 import operator
 import z3
 from z3 import ArithRef, BitVecRef, BoolRef
+import types
 
 class LanguageError(Exception):
     def __init__(self, message: str):
@@ -20,9 +21,14 @@ class Interpretor:
         self.functions = {
             "print": print, 
             "max": self.z3_max, 
-            "min": min, 
+            "arr_max": self.z3_arr_max, 
+            "min": self.z3_min, 
+            "py_max": max, 
+            "py_min": min, 
             "length": len,
             "array": self.make_array,
+            "int_array": self.int_array,
+            "copy_array": self.copy_array,
         }
         self.parser = Lark(
             GRAMMAR,
@@ -31,17 +37,33 @@ class Interpretor:
             propagate_positions=True,
         )
 
+    def copy_array(self, arr: list[int | ArithRef]):
+        A = z3.K(z3.IntSort(), 0)
+        for i in range(len(arr)):
+            A = z3.Store(A, i, arr[i])
+        return A
+
     # Create an array of length n with default value val
     def make_array(self, n: int, val: int | bool | float):
         return z3.K(z3.IntSort(), val)
     
+    def int_array(self, n:int, val:int):
+        return [val]*n
+    
+    def z3_arr_max(self, arr: z3.ArrayRef, n: int):
+        vals = [arr[i] for i in range(n)]
+        return self.z3_max(vals)
+    
     def z3_max(self, vs: list[z3.ArithRef | z3.BitVecRef] | list[int | float]):
-        #if isinstance(vs[0], int | float):
-        #    return max(vs)
-        #else:
         m = vs[0]
         for v in vs[1:]:
             m = z3.If(v > m, v, m)
+        return m
+    
+    def z3_min(self, vs: list[z3.ArithRef | z3.BitVecRef] | list[int | float]):
+        m = vs[0]
+        for v in vs[1:]:
+            m = z3.If(v < m, v, m)
         return m
     
     def eval_var(self, node: Tree):
@@ -112,7 +134,7 @@ class Interpretor:
         else:
             fun = self.eval_atom(node.children[0])
             args = self.eval_arguments(node.children[1])
-            if fun == self.z3_max:
+            if fun == self.z3_max or fun == self.z3_min:
                 return fun(args)
             return fun(*args)
     
@@ -227,7 +249,7 @@ class Interpretor:
             var = node.children[0].children[0].value
             val = self.eval_expression(node.children[1])
             self.variables[var] = val
-            return None
+            return val
         raise Exception(f"Variable Assignment Error")
     
     def eval_arr_assign(self, node: Tree | Token):
@@ -239,7 +261,9 @@ class Interpretor:
                 arr = self.variables[name]
                 try:
                     if isinstance(arr, z3.ArrayRef):
-                        self.variables[name] = z3.Store(arr, index, val)
+                        temp = z3.Store(arr, index, val)
+                        self.variables[name] = temp
+                        return temp
                     else:
                         index = int(index)
                         arr[index] = val
@@ -254,9 +278,13 @@ class Interpretor:
         if len(node.children) == 1:
             child = node.children[0]
             if child.data == "var_assignment":
-                self.eval_var_assign(child)
+                ret = self.eval_var_assign(child)
+                if isinstance(ret, z3.BoolRef):
+                    return ret
             elif child.data == "array_assignment":
-                self.eval_arr_assign(child)
+                ret = self.eval_arr_assign(child)
+                if isinstance(ret, z3.ArrayRef):
+                    return ret
             return None
         raise Exception(f"Assignment Error")
 
@@ -285,13 +313,18 @@ class Interpretor:
     def eval_if_stmt(self, node: Tree | Token):
         if len(node.children) == 2:
             cond = node.children[0]
+            stmt_list = node.children[1]
+
             check = self.eval_expression(cond)
             if isinstance(check, bool):
                 if check:
-                    stmt_list = node.children[1]
                     return self.eval_stmt_list(stmt_list)
                 else:
                     return None
+            elif isinstance(check, BoolRef):
+                stmts = self.eval_stmt_list(stmt_list)
+                print(stmts)
+                return z3.If(check, stmts, True)
         raise Exception(f"If Stmt Error")
 
     def eval_for_stmt(self, node: Tree | Token):
@@ -305,7 +338,7 @@ class Interpretor:
             last = None
             while True:
                 limit_check = self.eval_expression(limit)
-                if isinstance(limit_check, bool):
+                if isinstance(limit_check, bool | BoolRef):
                     if limit_check:
                         last = self.eval_stmt_list(action)
                     else:
@@ -329,14 +362,16 @@ class Interpretor:
         raise Exception(f"Statement Error")
     
     def eval_stmt_list(self, node: Tree | Token):
+        stmts = []
         for child in node.children:
             if child.data == "statement":
                 val = self.eval_statement(child)
+                stmts.append(val)
                 if child.children[0].data == "return_statement":
                     return val
             else: 
                 raise Exception("Stmt List Error")
-        return None
+        return stmts
     
     def eval_program(self, node: Tree | Token):
         if len(node.children) == 1:
@@ -361,19 +396,15 @@ class Interpretor:
         tree = self.parser.parse(prog)
         self.variables = lookup
 
-        bounds_flag = False
-        if len(self.holes) == 0:
-            bounds_flag = True
-
         out = self.eval_program(tree)
         for var in self.variables.values():
             if isinstance(var, z3.ArrayRef):
                 self.numz3Arrays += 1
-        #if bounds_flag:
+
         for hole in self.holes:
             if hole.startswith('x'):
                 s.add(self.holes[hole] >= 0)
-                s.add(self.holes[hole] <= self.variables['n']-1)
+                s.add(self.holes[hole] <= self.variables['n'])
             else:
                 s.add(self.holes[hole] >= -1)
                 s.add(self.holes[hole] <= 1)
