@@ -1,0 +1,5 @@
+n = length(A)
+dp = copy_array(A)
+
+fib = (?a1*dp[n-?x1] + ?b1) + (?a2*dp[n-?x2] + ?b2)
+return fib

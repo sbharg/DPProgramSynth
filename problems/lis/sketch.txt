@@ -1,0 +1,11 @@
+n = length(A)
+dp = array(n, 1)
+
+for(i = 1; i < n; i = i + 1)
+    for(j = 0; j < i; j = j + 1)
+        if(A[i] > A[j])
+            dp[i] = max(?a1*dp[i-?x1] + ?b1, ?a2*dp[j-?x2] + ?b2)
+        end
+    end
+end
+return arr_max(dp, n)
